@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Genomic Data Explorer</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: #1a202c;
+            overflow-x: hidden;
+        }
+        .moving-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(45deg, #1a202c, #2d3748, #4a5568);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+            z-index: -1;
+        }
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .glassmorphism {
+            background: rgba(26, 32, 44, 0.7);
+            backdrop-filter: blur(10px);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+        .dna-helix {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: -1;
+        }
+        .dna-strand {
+            position: absolute;
+            width: 2px;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            animation: dnaRotate 20s linear infinite;
+        }
+        @keyframes dnaRotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="text-gray-300 min-h-screen">
+    <div class="moving-background"></div>
+    <div class="dna-helix">
+        <div class="dna-strand" style="left: 10%; animation-delay: -2s;"></div>
+        <div class="dna-strand" style="left: 20%; animation-delay: -4s;"></div>
+        <div class="dna-strand" style="left: 30%; animation-delay: -6s;"></div>
+        <div class="dna-strand" style="left: 40%; animation-delay: -8s;"></div>
+        <div class="dna-strand" style="left: 50%; animation-delay: -10s;"></div>
+        <div class="dna-strand" style="left: 60%; animation-delay: -12s;"></div>
+        <div class="dna-strand" style="left: 70%; animation-delay: -14s;"></div>
+        <div class="dna-strand" style="left: 80%; animation-delay: -16s;"></div>
+        <div class="dna-strand" style="left: 90%; animation-delay: -18s;"></div>
+    </div>
+    
+    <nav class="bg-gray-900 bg-opacity-80 p-4 shadow-lg sticky top-0 z-10">
+        <div class="container mx-auto flex justify-between items-center">
+            <a href="/" class="text-xl font-semibold text-white">CancerCare</a>
+            <div>
+                <a href="/" class="px-3 py-2 rounded hover:bg-gray-800 transition duration-300">Home</a>
+                <a href="#" class="px-3 py-2 rounded hover:bg-gray-800 transition duration-300">About</a>
+                <a href="#" class="px-3 py-2 rounded hover:bg-gray-800 transition duration-300">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto p-8 mt-10 relative z-10">
+        <div class="glassmorphism p-8 max-w-3xl mx-auto text-center fade-in">
+            <h1 class="text-4xl font-bold mb-6 text-white">Genomic Data Explorer</h1>
+            
+            <form id="genomicForm" class="mt-8">
+                <div class="mb-6">
+                    <label for="query_type" class="block text-sm font-medium text-gray-300 mb-2">Select Query Type:</label>
+                    <select id="query_type" name="query_type" required class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300">
+                        <option value="gene">Gene</option>
+                        <option value="variant">Variant (rsID)</option>
+                    </select>
+                </div>
+                <div class="mb-6">
+                    <label id="query_label" for="query" class="block text-sm font-medium text-gray-300 mb-2">Enter Gene Symbol:</label>
+                    <input type="text" id="query" name="query" required class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-300" placeholder="e.g., BRCA1">
+                </div>
+                <button type="submit" class="w-full py-3 px-6 bg-blue-600 hover:bg-blue-700 rounded-lg text-white font-semibold transition duration-300 transform hover:scale-105 hover:shadow-lg">Submit</button>
+            </form>
+
+            <div id="result" class="mt-8 text-left hidden">
+                <h2 class="text-2xl font-semibold mb-4">Result:</h2>
+                <pre id="output" class="bg-gray-800 p-4 rounded-lg overflow-x-auto"></pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            $("#query_type").on("change", function() {
+                var queryType = $(this).val();
+                if (queryType === "gene") {
+                    $("#query_label").text("Enter Gene Symbol:");
+                    $("#query").attr("placeholder", "e.g., BRCA1");
+                } else {
+                    $("#query_label").text("Enter Variant (rsID):");
+                    $("#query").attr("placeholder", "e.g., rs121913529");
+                }
+            });
+
+            $("#genomicForm").on("submit", function(e) {
+                e.preventDefault();
+                var query_type = $("#query_type").val();
+                var query = $("#query").val();
+
+                if (!query) {
+                    alert("Please enter a valid " + (query_type === "gene" ? "Gene Symbol" : "rsID"));
+                    return;
+                }
+
+                $.ajax({
+                    url: "/genomic",
+                    type: "POST",
+                    contentType: "application/json",
+                    data: JSON.stringify({
+                        query_type: query_type,
+                        query: query
+                    }),
+                    success: function(response) {
+                        $("#output").text(JSON.stringify(response, null, 4));
+                        $("#result").removeClass("hidden").addClass("fade-in");
+                    },
+                    error: function(error) {
+                        $("#output").text("Error: " + error.responseText);
+                        $("#result").removeClass("hidden").addClass("fade-in");
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

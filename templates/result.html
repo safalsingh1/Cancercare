@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prediction Result</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
+        }
+        .glassmorphism {
+            background: rgba(26, 32, 44, 0.7);
+            backdrop-filter: blur(10px);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        .chat-container {
+            scrollbar-width: thin;
+            scrollbar-color: #4a5568 #2d3748;
+        }
+        .chat-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        .chat-container::-webkit-scrollbar-track {
+            background: #2d3748;
+        }
+        .chat-container::-webkit-scrollbar-thumb {
+            background-color: #4a5568;
+            border-radius: 20px;
+            border: 3px solid #2d3748;
+        }
+    </style>
+</head>
+<body class="text-gray-300 min-h-screen flex flex-col">
+    <nav class="bg-gray-900 p-4 shadow-lg">
+        <div class="container mx-auto flex justify-between items-center">
+            <a href="#" class="text-xl font-semibold text-white">CancerCare</a>
+            <div>
+                <a href="{{ url_for('index') }}" class="px-3 py-2 rounded hover:bg-gray-800 transition duration-300">Home</a>
+                <a href="#" class="px-3 py-2 rounded hover:bg-gray-800 transition duration-300">About</a>
+                <a href="#" class="px-3 py-2 rounded hover:bg-gray-800 transition duration-300">Contact</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="flex-1 container mx-auto p-8">
+        <div class="glassmorphism p-8 max-w-4xl mx-auto fade-in">
+            <h1 class="text-4xl font-bold text-center text-white mb-8">Prediction Result</h1>
+            
+            <div class="space-y-6">
+                <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+                    <h3 class="text-2xl font-semibold text-indigo-300">Predicted Cancer Type:</h3>
+                    <p class="text-3xl font-bold text-white mt-2">{{ label }}</p>
+                </div>
+
+                <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+                    <h3 class="text-2xl font-semibold text-indigo-300">Gemini Chatbot Response:</h3>
+                    <p class="mt-2 text-gray-300">{{ gemini_response }}</p>
+                </div>
+
+                <div>
+                    <h3 class="text-2xl font-semibold text-indigo-300 mb-4">Chat with the Bot:</h3>
+                    <div class="bg-gray-800 p-4 rounded-lg h-80 overflow-y-auto chat-container" id="chatContainer">
+                        <div id="chat_response" class="space-y-4"></div>
+                    </div>
+
+                    <form id="chatForm" class="mt-4 flex">
+                        <input type="text" id="user_input" class="flex-1 p-3 bg-gray-700 border border-gray-600 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Ask the Chatbot Something..." required>
+                        <button type="submit" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-r-lg transition duration-300">Send</button>
+                    </form>
+                </div>
+            </div>
+
+            <a href="{{ url_for('index') }}" class="mt-8 inline-block px-6 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition duration-300">Go Back</a>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        $('#chatForm').on('submit', function(e) {
+            e.preventDefault();
+            const user_input = $('#user_input').val();
+            $('#user_input').val('');
+            
+            $('#chat_response').append('<div class="fade-in p-3 bg-indigo-900 bg-opacity-50 rounded-lg"><strong class="text-indigo-300">You:</strong> ' + user_input + '</div>');
+            
+            $.ajax({
+                url: "{{ url_for('chat') }}",
+                method: "POST",
+                data: { user_input: user_input },
+                success: function(response) {
+                    $('#chat_response').append('<div class="fade-in p-3 bg-gray-700 rounded-lg"><strong class="text-indigo-300">Chatbot:</strong> ' + response.response + '</div>');
+                    $('#chatContainer').scrollTop($('#chatContainer')[0].scrollHeight);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
