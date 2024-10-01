@@ -58,18 +58,7 @@ Contributions are welcome! Please fork the repository and submit a pull request 
 License
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-Contact
-For any inquiries or feedback, please contact:
 
-Your Name - your.email@example.com
 Thank you for checking out CancerCare! Your support is appreciated in the fight against cancer.
-
-swift
-Copy code
-
-### Instructions:
-1. Replace placeholders such as `yourusername`, `your.email@example.com`, and any specific project details.
-2. Add any additional sections or information you feel is relevant to your project.
-3. Save the README file as `README.md` in your project repository. 
 
 Let me know if you need any further modifications!
