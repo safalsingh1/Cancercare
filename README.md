@@ -7,10 +7,6 @@ CancerCare is an AI-powered web application designed to detect cancer at early s
 - [Technologies Used](#technologies-used)
 - [Model Details](#model-details)
 - [Installation](#installation)
-- [Usage](#usage)
-- [Contributing](#contributing)
-- [License](#license)
-- [Contact](#contact)
 
 ## Features
 - **Early Cancer Detection:** Uses machine learning models to analyze CT scan images for cancer detection.
