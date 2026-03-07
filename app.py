@@ -1,138 +1,170 @@
-from flask import Flask, request, render_template, redirect, url_for, jsonify
-from tensorflow.keras.models import load_model
-from tensorflow.keras.preprocessing import image
-import numpy as np
+"""
+CancerCare FastAPI Backend Server
+
+Key Functionality:
+- Environment Variable Loading: Reads GEMINI_API_KEY from .env
+- Model Loading: Loads a generic ResNet18 adapted for `class_mapping.json`
+- Preprocessing: Torchvision transformation applied to uploaded images
+- Server Setup: FastAPI app loaded with wide-open CORS for the React frontend
+- Endpoints:
+  * /predict: Submits image bits for ResNet inference
+  * /chat: Uses Gemini SDK with environment config fallback
+"""
+import io
 import os
-import google.generativeai as genai
+import json
+import torch
+import torch.nn as nn
 import requests
+from google import genai
+from dotenv import load_dotenv
+from torchvision import models, transforms
+from PIL import Image
+from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import Dict, Any
 
-app = Flask(__name__)
+load_dotenv()
+API_KEY = os.getenv('GEMINI_API_KEY')
+gemini_client = genai.Client(api_key=API_KEY) if API_KEY else None
 
-API_KEY = os.getenv('API_KEY')
-genai.configure(api_key=API_KEY)
+MODEL_PATH = "model_best.pth"
+CLASS_MAP_PATH = "class_mapping.json"
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-model = load_model('my_model.h5')
-
-class_labels = ['Oral_Scc', 'Oral_Normal', 'Lymph_Mcl', 'Lymph_Fl', 'Lymph_Cll', 'Lung_Scc', 'Lung_Bnt', 'Lung_Aca', 
-                'Colon_Bnt', 'Colon_Aca', 'Kidney_Tumor', 'Kidney_Normal', 'Cervix_Sfi', 'Cervix_Pab', 'Cervix_Mep', 
-                'Cervix_Koc', 'Cervix_Dyk', 'Breast_Malignant', 'Breast_Benign', 'Brain_Tumor', 'Brain_Menin', 
-                'Brain_Glioma', 'ALL_Pro', 'ALL_Pre', 'ALL_Early', 'ALL_Benign']
-
-def preprocess_image(img_path):
-    img = image.load_img(img_path, target_size=(150, 150))
-    img_array = image.img_to_array(img)
-    img_array = np.expand_dims(img_array, axis=0)
-    img_array /= 255.0  
-    return img_array
-
-@app.route('/')
-def homepage():
-    return render_template('homepage.html')
-
-@app.route('/index')
-def index():
-    return render_template('index.html')
-
-@app.route('/genome')
-def genome_page():
-    return render_template('genome.html')
-
-@app.route('/predict', methods=['POST'])
-def predict():
-    if 'file' not in request.files:
-        return redirect(url_for('index'))
-
-    file = request.files['file']
-
-    if file.filename == '':
-        return redirect(url_for('index'))
-
-    if file:
-        file_path = os.path.join('uploads', file.filename)
-        file.save(file_path)
-
-        img = preprocess_image(file_path)
-
-        prediction = model.predict(img)
-        predicted_class = np.argmax(prediction, axis=1)[0]
-
-        predicted_label = class_labels[predicted_class]
-
-        os.remove(file_path)
-
-        gemini_response = send_to_gemini(predicted_label)
-
-        tcga_info = get_tcga_data(predicted_label)
-
-        return render_template('result.html', label=predicted_label, gemini_response=gemini_response, tcga_info=tcga_info)
-
-def send_to_gemini(predicted_label):
-    prompt = f"I have been diagnosed with {predicted_label} cancer. Can you tell me more about it."
-
-    model = genai.GenerativeModel("gemini-1.5-flash")
-    response = model.generate_content(prompt)
-
-    return response.text if response else "Sorry, no response from Gemini API."
-
-def get_tcga_data(predicted_label):
-    tcga_api_url = f"https://api.gdc.cancer.gov/projects/{predicted_label}"
-    response = requests.get(tcga_api_url)
-
-    if response.status_code == 200:
-        data = response.json()
-        project_info = {
-            'project_id': data.get('project_id', 'N/A'),
-            'name': data.get('name', 'N/A'),
-            'primary_site': data.get('primary_site', 'N/A'),
-            'disease_type': data.get('disease_type', 'N/A'),
-            'program': data.get('program', {'name': 'N/A'})
-        }
-        return project_info
-    else:
+def load_class_mapping(mapping_path: str):
+    try:
+        with open(mapping_path, 'r') as f:
+            class_to_idx = json.load(f)
+        idx_to_class = {v: k for k, v in class_to_idx.items()}
+        return idx_to_class
+    except FileNotFoundError:
         return None
 
-@app.route('/chat', methods=['POST'])
-def chat():
-    user_input = request.form['user_input']
-    gemini_response = send_to_gemini(user_input)
-    return jsonify({'response': gemini_response})
+def load_model(model_path: str, num_classes: int, device: torch.device):
+    model = models.resnet18(weights=None)
+    num_ftrs = model.fc.in_features
+    model.fc = nn.Linear(num_ftrs, num_classes)
+    try:
+        model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
+        model = model.to(device)
+        model.eval()
+        return model
+    except FileNotFoundError:
+        return None
 
-def get_gene_info(gene_name):
-    url = f'https://rest.ensembl.org/lookup/symbol/homo_sapiens/{gene_name}?content-type=application/json'
-    response = requests.get(url)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        return {"error": f"Gene '{gene_name}' not found."}
+IDX_TO_CLASS = load_class_mapping(CLASS_MAP_PATH)
+NUM_CLASSES = len(IDX_TO_CLASS) if IDX_TO_CLASS else 30 # fallback just in case
+MODEL = load_model(MODEL_PATH, NUM_CLASSES, DEVICE)
 
-def get_variant_info(rsid):
-    url = f'https://rest.ensembl.org/variation/human/{rsid}?content-type=application/json'
-    response = requests.get(url)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        return {"error": f"Variant '{rsid}' not found."}
+TRANSFORM = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+])
 
-@app.route('/genomic', methods=['POST'])
-def genomic():
-    data = request.get_json()
-    query_type = data.get('query_type')
-    query = data.get('query')
+app = FastAPI(title="Cancer Subtype Predictor API")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # For production, restrict this to your frontend domain
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/")
+def root():
+    return {"message": "Welcome to the Multi-Cancer Predictor API. Model Status: " + ("Loaded" if MODEL else "Not Found")}
+
+@app.post("/predict")
+async def predict_image(file: UploadFile = File(...)):
+    if not MODEL or not IDX_TO_CLASS:
+        raise HTTPException(status_code=500, detail="The classification model has not been trained or loaded yet.")
+    
+    try:
+        contents = await file.read()
+        image = Image.open(io.BytesIO(contents)).convert('RGB')
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid image file: {str(e)}")
+
+    image_tensor = TRANSFORM(image).unsqueeze(0).to(DEVICE)
+    
+    with torch.no_grad():
+        outputs = MODEL(image_tensor)
+        probabilities = torch.nn.functional.softmax(outputs, dim=1)
+        top_prob, top_class_idx = torch.max(probabilities, 1)
+
+    class_idx = top_class_idx.item()
+    confidence = top_prob.item() * 100
+    predicted_class = IDX_TO_CLASS[class_idx]
+    
+    return {
+        "prediction": predicted_class,
+        "confidence": round(confidence, 2)
+    }
+
+class ChatRequest(BaseModel):
+    user_input: str
+
+@app.post("/chat")
+def chat(req: ChatRequest):
+    gemini_client = genai.Client(api_key=API_KEY) if API_KEY else genai.Client()
+    
+    prompt = (
+        f"You are a warm, empathetic emotional support chatbot for cancer patients. "
+        f"Keep your response concise (2-4 short paragraphs max). "
+        f"User message: {req.user_input}"
+    )
+    
+    models_to_try = ["gemini-3-flash-preview", "gemini-2.0-flash", "gemini-1.5-flash-8b"]
+    import time
+    
+    for model_name in models_to_try:
+        for attempt in range(2):
+            try:
+                response = gemini_client.models.generate_content(
+                    model=model_name,
+                    contents=prompt
+                )
+                return {"response": response.text if response else "I'm sorry, I couldn't get a response. Please try again."}
+            except Exception as e:
+                err_str = str(e)
+                print(f"Chatbot Error on {model_name} (attempt {attempt}): {err_str}")
+                if "429" in err_str or "404" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                    time.sleep(1)
+                    continue
+                else:
+                    break # try next model
+    
+    return {"response": "I'm here for you! The service is briefly busy — please send your message again in a moment."}
+
+class GenomicRequest(BaseModel):
+    query_type: str
+    query: str
+
+@app.post("/genomic")
+def genomic(req: GenomicRequest):
+    query = req.query
+    query_type = req.query_type
+    
     if not query:
-        return jsonify({"error": "Query input is missing"}), 400
-
+        raise HTTPException(status_code=400, detail="Query input is missing")
+        
     if query_type == 'gene':
-        result = get_gene_info(query)
+        url = f'https://rest.ensembl.org/lookup/symbol/homo_sapiens/{query}?content-type=application/json'
     elif query_type == 'variant':
-        result = get_variant_info(query)
+        url = f'https://rest.ensembl.org/variation/human/{query}?content-type=application/json'
     else:
-        result = {"error": "Invalid query type"}
+        raise HTTPException(status_code=400, detail="Invalid query type")
+        
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        return {"error": f"{query_type.capitalize()} '{query}' not found."}
 
-    return jsonify(result)
-
-if __name__ == '__main__':
-    if not os.path.exists('uploads'):
-        os.makedirs('uploads')
-
-    app.run(debug=True)
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
