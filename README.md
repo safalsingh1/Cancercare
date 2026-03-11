@@ -1,11 +1,22 @@
-# 🩺 Multi Cancer Dataset - 8 Types of Cancer Images
+# 🩺 CancerCare Platform
 
-## Overview
-This dataset contains images of various cancer types, compiled for research and analysis purposes. It includes **8 main cancer classes** and **26 subclasses**, providing a rich resource for medical image classification and machine learning applications.
+## 🚀 Project Overview
+**CancerCare** is a comprehensive full-stack healthcare platform combining deep learning-based diagnostics, genomic data exploration, and AI-driven emotional support for cancer patients.
+
+* **Technologies Used:** Python, FastAPI, React.js, PyTorch, Google Gemini API, Ensembl REST API
+
+### Key Features:
+* **Medical Image Classifier:** Engineered a computer vision pipeline using **PyTorch** and a custom-trained **ResNet-18** model to accurately identify across 30 distinct cancer subtypes from uploaded medical slide images, returning real-time confidence scores.
+* **AI Support Chatbot:** Integrated the **Google Gemini 2.0 Flash API** to build an empathetic emotional support chatbot, implementing robust error handling and exponential backoff strategies to gracefully manage API rate limits.
+* **Genomic Explorer:** Built a RESTful backend using **FastAPI** to handle image preprocessing tensors, asynchronous AI streaming, and external integration with the Ensembl API for real-time gene and variant (rsID) lookups.
+* **Modern SPA Interface:** Designed a responsive, tabbed Single Page Application (SPA) using **React** and Vite, featuring drag-and-drop image uploads, dynamic loading states, and a real-time chat UI.
 
 ---
 
-## 📊 Dataset Details & Structure
+## 📊 Dataset Details & Structure (Training Data)
+This dataset contains images of various cancer types, compiled for research and analysis purposes. It includes **8 main cancer classes** and **26 subclasses**, providing a rich resource for medical image classification and machine learning applications.
+
+---
 
 ### **1. Acute Lymphoblastic Leukemia (ALL)** 🔗 [Source](https://www.kaggle.com/datasets/mehradaria/leukemia)
 - **Source**: Compiled from images provided in the dataset by Mehrad Aria on Kaggle.
